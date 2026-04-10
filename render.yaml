@@ -1,0 +1,16 @@
+services:
+  # Backend API Service
+  - type: web
+    name: kerala-bank-api
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    
+  # PostgreSQL Database
+  - type: pserv
+    name: kerala-bank-db
+    plan: free
+    databaseName: kerala_bank
+    databaseUser: kerala_bank_user
