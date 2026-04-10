@@ -2,7 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form
 from fastapi.responses import Response, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from .database import SessionLocal, engine, Base
+from .database import SessionLocal, engine, Base, SQLALCHEMY_DATABASE_URL
 from . import models, crud
 import shutil
 import os
@@ -210,20 +210,41 @@ def _build_branch_report_xls(branch_name: str, branch_code: str, as_on_date: str
 </Workbook>"""
     return workbook.encode("utf-8")
 def _ensure_urgent_sender_column():
-    # SQLite: create_all doesn't add columns to existing tables.
+    # PostgreSQL: create_all doesn't add columns to existing tables.
     with engine.connect() as conn:
-        cols = conn.execute(text("PRAGMA table_info(urgent_messages)")).fetchall()
-        col_names = {row[1] for row in cols}  # (cid, name, type, notnull, dflt_value, pk)
+        # PostgreSQL compatible column check
+        if SQLALCHEMY_DATABASE_URL.startswith("sqlite"):
+            cols = conn.execute(text("PRAGMA table_info(urgent_messages)")).fetchall()
+            col_names = {row[1] for row in cols}  # (cid, name, type, notnull, dflt_value, pk)
+        else:
+            # PostgreSQL version
+            cols = conn.execute(text("""
+                SELECT column_name FROM information_schema.columns 
+                WHERE table_name = 'urgent_messages' AND table_schema = 'public'
+            """)).fetchall()
+            col_names = {row[0] for row in cols}
+        
         if "sender_id" not in col_names:
             conn.execute(text("ALTER TABLE urgent_messages ADD COLUMN sender_id VARCHAR"))
             conn.commit()
 
 def _ensure_report_columns():
     with engine.connect() as conn:
-        cols = conn.execute(text("PRAGMA table_info(reports)")).fetchall()
-        col_names = {row[1] for row in cols}
+        # PostgreSQL compatible column check
+        if SQLALCHEMY_DATABASE_URL.startswith("sqlite"):
+            cols = conn.execute(text("PRAGMA table_info(reports)")).fetchall()
+            col_names = {row[1] for row in cols}
+        else:
+            # PostgreSQL version
+            cols = conn.execute(text("""
+                SELECT column_name FROM information_schema.columns 
+                WHERE table_name = 'reports' AND table_schema = 'public'
+            """)).fetchall()
+            col_names = {row[0] for row in cols}
+        
         if "status" not in col_names:
             conn.execute(text("ALTER TABLE reports ADD COLUMN status VARCHAR DEFAULT 'pending'"))
+            conn.commit()
         if "resolved_by" not in col_names:
             conn.execute(text("ALTER TABLE reports ADD COLUMN resolved_by VARCHAR"))
         if "resolved_at" not in col_names:
@@ -232,17 +253,36 @@ def _ensure_report_columns():
 
 def _ensure_branch_sma_schema():
     with engine.connect() as conn:
-        tables = {
-            row[0]
-            for row in conn.execute(
-                text("SELECT name FROM sqlite_master WHERE type='table'")
-            ).fetchall()
-        }
+        # PostgreSQL compatible table query
+        if SQLALCHEMY_DATABASE_URL.startswith("sqlite"):
+            tables = {
+                row[0]
+                for row in conn.execute(
+                    text("SELECT name FROM sqlite_master WHERE type='table'")
+                ).fetchall()
+            }
+        else:
+            # PostgreSQL version
+            tables = {
+                row[0]
+                for row in conn.execute(
+                    text("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'")
+                ).fetchall()
+            }
         if "branch_sma_data" not in tables:
             return
 
-        cols = conn.execute(text("PRAGMA table_info(branch_sma_data)")).fetchall()
-        col_names = {row[1] for row in cols}
+        # PostgreSQL compatible column check
+        if SQLALCHEMY_DATABASE_URL.startswith("sqlite"):
+            cols = conn.execute(text("PRAGMA table_info(branch_sma_data)")).fetchall()
+            col_names = {row[1] for row in cols}
+        else:
+            # PostgreSQL version
+            cols = conn.execute(text("""
+                SELECT column_name FROM information_schema.columns 
+                WHERE table_name = 'branch_sma_data' AND table_schema = 'public'
+            """)).fetchall()
+            col_names = {row[0] for row in cols}
 
         expected_columns = {
             "branch_code",
@@ -616,17 +656,36 @@ def _ensure_branch_sma_schema():
 
 def _ensure_loan_actions_schema():
     with engine.connect() as conn:
-        tables = {
-            row[0]
-            for row in conn.execute(
-                text("SELECT name FROM sqlite_master WHERE type='table'")
-            ).fetchall()
-        }
+        # PostgreSQL compatible table query
+        if SQLALCHEMY_DATABASE_URL.startswith("sqlite"):
+            tables = {
+                row[0]
+                for row in conn.execute(
+                    text("SELECT name FROM sqlite_master WHERE type='table'")
+                ).fetchall()
+            }
+        else:
+            # PostgreSQL version
+            tables = {
+                row[0]
+                for row in conn.execute(
+                    text("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'")
+                ).fetchall()
+            }
         if "loan_actions" not in tables:
             return
 
-        cols = conn.execute(text("PRAGMA table_info(loan_actions)")).fetchall()
-        col_names = {row[1] for row in cols}
+        # PostgreSQL compatible column check
+        if SQLALCHEMY_DATABASE_URL.startswith("sqlite"):
+            cols = conn.execute(text("PRAGMA table_info(loan_actions)")).fetchall()
+            col_names = {row[1] for row in cols}
+        else:
+            # PostgreSQL version
+            cols = conn.execute(text("""
+                SELECT column_name FROM information_schema.columns 
+                WHERE table_name = 'loan_actions' AND table_schema = 'public'
+            """)).fetchall()
+            col_names = {row[0] for row in cols}
         expected = {
             "loan_number",
             "action1", "action1_date",
