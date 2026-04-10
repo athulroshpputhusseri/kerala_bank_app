@@ -709,6 +709,27 @@ def health_check():
     """Health check endpoint for Render"""
     return {"status": "healthy", "message": "Kerala Bank API is running"}
 
+@app.post("/create-tables")
+def create_tables():
+    """Manually create all database tables"""
+    try:
+        from .database import engine
+        from . import models
+        
+        # Create all tables
+        models.Base.metadata.create_all(bind=engine)
+        
+        # Run additional table creation functions
+        _ensure_urgent_sender_column()
+        _ensure_report_columns()
+        _ensure_branch_sma_schema()
+        _ensure_loan_actions_schema()
+        _ensure_finacle_help_seed()
+        
+        return {"status": "success", "message": "All tables created successfully"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
