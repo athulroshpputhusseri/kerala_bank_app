@@ -704,6 +704,11 @@ _ensure_finacle_help_seed()
 # 1. Create the FastAPI instance FIRST
 app = FastAPI(title="Kerala Bank Backend API")
 
+@app.get("/health")
+def health_check():
+    """Health check endpoint for Render"""
+    return {"status": "healthy", "message": "Kerala Bank API is running"}
+
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
