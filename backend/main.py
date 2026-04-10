@@ -730,6 +730,58 @@ def create_tables():
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
+@app.on_event("startup")
+async def startup_event():
+    """Create tables on application startup"""
+    try:
+        from .database import engine
+        from . import models
+        
+        # Create all tables
+        models.Base.metadata.create_all(bind=engine)
+        
+        # Run additional table creation functions
+        _ensure_urgent_sender_column()
+        _ensure_report_columns()
+        _ensure_branch_sma_schema()
+        _ensure_loan_actions_schema()
+        _ensure_finacle_help_seed()
+        
+        print("Tables created successfully on startup")
+    except Exception as e:
+        print(f"Error creating tables on startup: {e}")
+
+@app.get("/check-tables")
+def check_tables():
+    """Check if tables exist in database"""
+    try:
+        from .database import SessionLocal
+        from sqlalchemy import text
+        
+        db = SessionLocal()
+        
+        # Check if tables exist
+        result = db.execute(text("""
+            SELECT table_name FROM information_schema.tables 
+            WHERE table_schema = 'public' 
+            ORDER BY table_name
+        """))
+        
+        tables = [row[0] for row in result]
+        db.close()
+        
+        return {
+            "status": "success",
+            "tables": tables,
+            "count": len(tables)
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e),
+            "tables": []
+        }
+
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -754,7 +806,7 @@ def get_db():
 # ------------------- ROUTES -------------------
 
 # Login
-@app.post("/login")
+@app.get("/login")
 def login(emp_id: str, password: str, db: Session = Depends(get_db)):
     user = db.query(models.Employee).filter(models.Employee.emp_id == emp_id).first()
     if not user or user.password != password:
